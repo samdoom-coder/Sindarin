@@ -1,0 +1,39 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+*.pyc
+
+# Virtual envs
+env/
+venv/
+.venv/
+env3/
+
+# Local secrets / config
+.env
+proxies.txt
+
+# Exports
+exports/
+*.csv
+!example.csv
+
+# Logs
+*.log
+logs/
+
+# Editor / OS cruft
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+.claude/
+.swp
+.swo
+*~
+
+# Distribution / build artifacts
+build/
+dist/
+*.egg-info/
