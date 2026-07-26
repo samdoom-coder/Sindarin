@@ -13,7 +13,7 @@
 ## Install
 
 ```bash
-git clone https://github.com/yourname/Sindarin.git
+https://github.com/samdoom-coder/Sindarin.git
 cd Sindarin
 pip install -r requirements.txt
 cp .env.example .env   # optional: add keys/proxies
@@ -53,7 +53,7 @@ Sindarin is intentionally **conservative**:
 
 - **No login bypass**, no CAPTCHA solving, no session spoofing.
 - **No SMTP probing** — we never contact mail servers (no VRFY/RCPT). Email candidates are derived from public bios/links only and are marked **unverified**.
-- **Self-identifying User-Agent**: `Sindarin/<version> (+https://github.com/yourname/Sindarin) public-profile-scraper`
+- **Self-identifying User-Agent**: `Sindarin/<version> (+https://github.com/samdoom-code/Sindarin) public-profile-scraper`
 - **Per-host rate limiting** (default 2s) + exponential backoff + HTTP 429 `Retry-After` honoring.
 - **Optional robots.txt respect**: `SINDARIN_HONOR_ROBOTS=true`
 - **Proxy support** (single or rotating file) — opt-in only.
