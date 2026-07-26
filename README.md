@@ -8,6 +8,8 @@
 > scrape only public pages, respect each platform's Terms of Service and robots.txt,
 > rate-limit your requests, and never use it for spam, stalking, or harassment.
 
+![Description of image](image.png)
+
 ## Install
 
 ```bash
