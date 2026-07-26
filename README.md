@@ -13,7 +13,7 @@
 ## Install
 
 ```bash
-https://github.com/samdoom-coder/Sindarin.git
+git clone https://github.com/samdoom-coder/Sindarin.git
 cd Sindarin
 pip install -r requirements.txt
 cp .env.example .env   # optional: add keys/proxies
