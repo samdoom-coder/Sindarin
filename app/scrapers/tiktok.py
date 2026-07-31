@@ -53,11 +53,24 @@ def scrape(username: str, session: Optional[_http.Session] = None) -> Dict[str, 
     if user_block:
         _fill_from_block(p, user_block)
 
-    # Fallback: pull anything that looks like an email from the raw HTML
-    if not p["email"]:
-        m = _http.email_regex().search(html)
-        if m:
-            p["email"] = m.group(0)
+    # Track TikTok's internal status code for diagnostics (e.g. 10222 = limited
+    # data for certain accounts)
+    svc = _extract_status_code(html)
+    if svc is not None:
+        p["raw"]["tiktok_status_code"] = svc
+
+    # Extract email / phone from bio text (not the entire HTML, which can
+    # contain placeholder addresses like example@example.com from TikTok's
+    # own templates)
+    if p["bio"]:
+        if not p["email"]:
+            m = _http.email_regex().search(p["bio"])
+            if m:
+                p["email"] = m.group(0)
+        if not p["phone"]:
+            m = _http.phone_regex().search(p["bio"])
+            if m:
+                p["phone"] = m.group(0)
 
     validate(p)
     return p
@@ -92,25 +105,65 @@ def _extract_sigi_state(html: str) -> Optional[dict]:
         return None
 
 
+_STATUS_CODE_RE = re.compile(r'"statusCode"\s*:\s*(\d+)')
+
+
+def _extract_status_code(html: str) -> Optional[int]:
+    m = _STATUS_CODE_RE.search(html)
+    return int(m.group(1)) if m else None
+
+
 def _fill_from_block(p: Dict[str, Any], block: dict) -> None:
     user = None
+    stats: Optional[dict] = None
+    stats_v2: Optional[dict] = None
     # Rehydration path
-    user = (((block.get("__DEFAULT_SCOPE__", {}) or {})
-             .get("webapp.user-detail", {}) or {})
-            .get("userInfo", {}) or {}).get("user") or {}
+    user_info = (((block.get("__DEFAULT_SCOPE__", {}) or {})
+                  .get("webapp.user-detail", {}) or {})
+                 .get("userInfo", {}) or {})
+    if user_info:
+        user = user_info.get("user") or {}
+        stats = user_info.get("stats") or {}
+        stats_v2 = user_info.get("statsV2") or {}
     if not user:
-        # SIGI path
-        user = (block.get("UserModule", {}) or {}).get("users", [{}])[0]
+        # SIGI path — UserModule.users is a dict keyed by user ID
+        users_map = (block.get("UserModule", {}) or {}).get("users", {})
+        if isinstance(users_map, dict) and users_map:
+            user = list(users_map.values())[0]
+            stats = (user.get("stats") or {})
+            stats_v2 = (user.get("statsV2") or {})
+        elif isinstance(users_map, list) and users_map:
+            user = users_map[0]
+            stats = (user.get("stats") or {})
+            stats_v2 = (user.get("statsV2") or {})
     if not user:
         return
 
     p["full_name"] = user.get("nickname") or user.get("uniqueId")
     p["bio"] = user.get("signature")
-    p["follower_count"] = user.get("followerCount") or (user.get("stats", {}) or {}).get("followerCount")
-    p["following_count"] = user.get("followingCount") or (user.get("stats", {}) or {}).get("followingCount")
-    p["post_count"] = user.get("videoCount") or (user.get("stats", {}) or {}).get("videoCount")
+    # follower/following/post counts: prefer integer stats, fall back to string statsV2
+    p["follower_count"] = (
+        stats.get("followerCount")
+        or stats_v2.get("followerCount")
+    )
+    if isinstance(p["follower_count"], str):
+        p["follower_count"] = int(p["follower_count"]) if p["follower_count"].isdigit() else None
+    p["following_count"] = (
+        stats.get("followingCount")
+        or stats_v2.get("followingCount")
+    )
+    if isinstance(p["following_count"], str):
+        p["following_count"] = int(p["following_count"]) if p["following_count"].isdigit() else None
+    p["post_count"] = (
+        stats.get("videoCount")
+        or stats_v2.get("videoCount")
+    )
+    if isinstance(p["post_count"], str):
+        p["post_count"] = int(p["post_count"]) if p["post_count"].isdigit() else None
     p["profile_image"] = user.get("avatarLarger") or user.get("avatarMedium")
-    p["website"] = user.get("link", {}).get("link") if isinstance(user.get("link"), dict) else None
+    link_obj = user.get("link")
+    if isinstance(link_obj, dict):
+        p["website"] = link_obj.get("link") or link_obj.get("webLink")
     p["raw"]["verified"] = bool(user.get("verified"))
     p["raw"]["private"] = bool(user.get("secret") or user.get("privateAccount"))
 
