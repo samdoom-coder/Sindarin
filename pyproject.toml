@@ -1,0 +1,63 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sindarin"
+description = "A safe-to-use CLI scraper for public social media profiles."
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [
+    { name = "Sindarin contributors" },
+]
+keywords = ["scraper", "social-media", "osint", "cli", "linkedin", "github", "youtube"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Internet :: WWW/HTTP :: HTTP Servers",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Typing :: Typed",
+]
+# Keep these in sync with requirements.txt
+dependencies = [
+    "requests>=2.28.0",
+    "rich>=13.7.0",
+    "dnspython>=2.4.0",
+]
+dynamic = ["version"]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4",
+    "respx>=0.20 ; python_version>='3.9'",
+    "requests-mock>=1.11",
+]
+
+[project.scripts]
+sindarin = "sindarin:main"
+
+[project.urls]
+Homepage = "https://github.com/samdoom-coder/Sindarin"
+Repository = "https://github.com/samdoom-coder/Sindarin"
+Issues = "https://github.com/samdoom-coder/Sindarin/issues"
+
+# --- packaging layout ---------------------------------------------------------
+# sindarin.py is a top-level script module; app/ is the importable package.
+[tool.setuptools]
+py-modules = ["sindarin"]
+packages = ["app", "app.scrapers"]
+
+[tool.setuptools.dynamic]
+version = { attr = "app.__version__" }
+
+[tool.setuptools.package-data]
+app = ["py.typed"]

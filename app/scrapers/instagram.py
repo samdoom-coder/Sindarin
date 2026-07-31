@@ -26,6 +26,23 @@ log = logging.getLogger("sindarin.scrapers.instagram")
 
 _PROFILE_URL = "https://www.instagram.com/{username}/"
 
+# Headers the Instagram web client sends. Presenting these (like a browser's
+# Accept-Language) is NOT login bypass, CAPTCHA solving, or session spoofing —
+# it is the set of signals a normal browser would send. They improve the chance
+# the server returns the public profile instead of a login interstitial.
+_WEB_HEADERS = {
+    "Accept-Language": "en-US,en;q=0.9",
+    "x-ig-app-id": "936636368002489",
+    "x-requested-with": "XMLHttpRequest",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+}
+
+
+def _is_login_wall(resp: Any) -> bool:
+    """True if Instagram served a redirect to the login interstitial."""
+    loc = resp.headers.get("Location", "")
+    return resp.status_code in (301, 302, 303, 307, 308) and "accounts/login" in loc
+
 
 def scrape(username: str, session: Optional[_http.Session] = None) -> Dict[str, Any]:
     username = (username or "").strip().lstrip("@")
@@ -36,42 +53,60 @@ def scrape(username: str, session: Optional[_http.Session] = None) -> Dict[str, 
     own_session = session is None
     if own_session:
         session = _http.Session()
-    try:
-        resp = session.get(url, headers={"Accept-Language": "en-US,en;q=0.9"})
-    finally:
-        if own_session:
-            session.close()
 
     p = new_profile("instagram", url, username)
     p["scraped_at"] = _now_iso()
 
-    if resp.status_code != 200:
-        log.warning("Instagram returned %d for %s", resp.status_code, username)
+    try:
+        # Don't auto-follow redirects so we can detect a login-wall redirect.
+        try:
+            resp = session.get(url, headers=_WEB_HEADERS, allow_redirects=False)
+        except Exception as e:
+            log.warning("Instagram request failed for %s: %s", username, e)
+            p["raw"]["request_error"] = str(e)
+            validate(p)
+            return p
+
+        # A redirect to /accounts/login is Instagram's login wall. We do NOT
+        # bypass it; we surface an empty profile and record the cause.
+        if _is_login_wall(resp):
+            log.info("Instagram login wall for %s — returning empty profile", username)
+            p["raw"]["login_wall"] = True
+            p["raw"]["http_status"] = resp.status_code
+            validate(p)
+            return p
+
+        if resp.status_code != 200:
+            log.warning("Instagram returned %d for %s", resp.status_code, username)
+            p["raw"]["http_status"] = resp.status_code
+            validate(p)
+            return p
+
+        html = resp.text
+        data = _extract_shared_data(html)
+        if data:
+            # Structure has varied historically; tolerate either shape.
+            graph = (((data.get("entry_data", {}) or {})
+                       .get("ProfilePage", [{}]) or [{}])[0]
+                      .get("graphql", {}) or {}).get("user", {})
+            if graph:
+                _fill_from_graph(p, graph)
+
+        # Bio fallbacks
+        if not p["email"] and p["bio"]:
+            m = _http.email_regex().search(p["bio"])
+            if m:
+                p["email"] = m.group(0)
+        if not p["phone"] and p["bio"]:
+            m = _http.phone_regex().search(p["bio"])
+            if m:
+                p["phone"] = m.group(0)
+
         validate(p)
         return p
-
-    html = resp.text
-    data = _extract_shared_data(html)
-    if data:
-        # The structure has varied historically; be tolerant of either shape.
-        graph = (((data.get("entry_data", {}) or {})
-                   .get("ProfilePage", [{}]) or [{}])[0]
-                  .get("graphql", {}) or {}).get("user", {})
-        if graph:
-            _fill_from_graph(p, graph)
-
-    # Bio fallbacks
-    if not p["email"] and p["bio"]:
-        m = _http.email_regex().search(p["bio"])
-        if m:
-            p["email"] = m.group(0)
-    if not p["phone"] and p["bio"]:
-        m = _http.phone_regex().search(p["bio"])
-        if m:
-            p["phone"] = m.group(0)
-
-    validate(p)
-    return p
+    finally:
+        if own_session:
+            session.close()
 
 
 # --- helpers --------------------------------------------------------------------

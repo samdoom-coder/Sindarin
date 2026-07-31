@@ -60,7 +60,7 @@ from app.scrapers import (
     scrape_linkedin,
 )
 from app.enrichment import enrich, enrich_many
-from app.scrapers._http import Session as HttpSession
+from app.scrapers._http import Session as HttpSession, DEFAULT_UA
 
 # --- constants ------------------------------------------------------------------
 
@@ -210,7 +210,60 @@ def _export_csv(profiles: List[Dict[str, Any]], path: Path) -> None:
     console.print(f"[green]✓[/green] Exported {len(profiles)} profiles to [white]{path}[/white]")
 
 
+def _export_json(profiles: List[Dict[str, Any]], path: Path) -> None:
+    """Write profiles to a single JSON array file."""
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(profiles, f, ensure_ascii=False, indent=2)
+    console.print(f"[green]✓[/green] Exported {len(profiles)} profiles to [white]{path}[/white]")
+
+
+def _export_jsonl(profiles: List[Dict[str, Any]], path: Path) -> None:
+    """Write profiles as JSON Lines (one object per line; good for large bulk)."""
+    with open(path, "w", encoding="utf-8") as f:
+        for p in profiles:
+            f.write(json.dumps(p, ensure_ascii=False) + "\n")
+    console.print(f"[green]✓[/green] Exported {len(profiles)} profiles to [white]{path}[/white]")
+
+
+def _prompt_export(profiles: List[Dict[str, Any]], platform: str) -> None:
+    """Interactive export: ask format (CSV/JSON/JSONL/Both) and write file(s)."""
+    if not profiles:
+        return
+    if not Confirm.ask("\n[white][+] Export results?[/white]", default=True):
+        return
+
+    fmt = Prompt.ask(
+        "[white]Format[/white]",
+        choices=["csv", "json", "jsonl", "both"],
+        default="csv",
+        show_choices=True,
+    )
+    stamp = _dt.datetime.now().strftime("%Y%m%d_%H%M%S")
+
+    if fmt in ("csv", "both"):
+        out_path = Prompt.ask(
+            "[white]CSV output path[/white]",
+            default=f"sindarin_{platform}_{stamp}.csv",
+        )
+        _export_csv(profiles, Path(out_path))
+
+    if fmt in ("json", "both"):
+        out_path = Prompt.ask(
+            "[white]JSON output path[/white]",
+            default=f"sindarin_{platform}_{stamp}.json",
+        )
+        _export_json(profiles, Path(out_path))
+
+    if fmt == "jsonl":
+        out_path = Prompt.ask(
+            "[white]JSONL output path[/white]",
+            default=f"sindarin_{platform}_{stamp}.jsonl",
+        )
+        _export_jsonl(profiles, Path(out_path))
+
+
 # --- core scraping flow -----------------------------------------------------------
+
 
 def scrape_single(platform: str, session: Optional[HttpSession] = None) -> Optional[Dict[str, Any]]:
     """Interactive single-profile scrape."""
@@ -343,15 +396,21 @@ def main() -> None:
             print("  python sindarin.py --help         # show this help")
             print()
             print("Environment:")
-            print("  GITHUB_TOKEN         GitHub API token (raises rate limit)")
-            print("  TWITCH_CLIENT_ID     Twitch Helix API Client ID")
-            print("  LINKEDIN_COOKIE      li_at session cookie for LinkedIn")
-            print("  SCOUT_PROXY          Single proxy (http://user:pass@host:port)")
-            print("  SCOUT_PROXY_FILE     Proxy list file (one per line)")
-            print("  SCOUT_FREE_PROXY     Use free proxies (true/false)")
+            print("  GITHUB_TOKEN          GitHub API token (raises rate limit)")
+            print("  TWITCH_CLIENT_ID      Twitch Helix API Client ID")
+            print("  LINKEDIN_COOKIE       li_at session cookie for LinkedIn")
+            print("  HUNTER_API_KEY        (optional) Hunter.io enrichment key")
+            print("  SINDARIN_PROXY        Single proxy (http://user:pass@host:port)")
+            print("  SINDARIN_PROXY_FILE   Proxy list file (one per line)")
+            print("  SINDARIN_FREE_PROXY   Use free proxies (true/false)")
+            print("  SINDARIN_DELAY        Per-host delay seconds (default 2.0)")
+            print("  SINDARIN_TIMEOUT      Request timeout seconds (default 20)")
+            print("  SINDARIN_HONOR_ROBOTS true to respect robots.txt (default false)")
+            print("  SINDARIN_USER_AGENT   Override default self-identifying UA")
+            print("  (SINDARIN_* vars also accepted under legacy SCOUT_* names)")
             print()
             print("Safety: Only scrapes public pages. No CAPTCHA solving, no login bypass,")
-            print("no SMTP probing. Respects robots.txt when honor_robots=True (opt-in).")
+            print("no SMTP probing. Respects robots.txt when SINDARIN_HONOR_ROBOTS=true (opt-in).")
             sys.exit(0)
 
     _print_logo()
@@ -368,20 +427,33 @@ def main() -> None:
         padding=(1, 2),
     ))
 
-    # Session config
-    delay = 2.0
-    proxy = os.environ.get("SCOUT_PROXY", "").strip() or None
-    proxy_file = os.environ.get("SCOUT_PROXY_FILE", "").strip() or None
-    use_free = os.environ.get("SCOUT_FREE_PROXY", "").strip().lower() == "true"
+    # Session config — honor documented SINDARIN_* vars, with SCOUT_* as a
+    # backwards-compatible fallback.
+    def _env(*names: str) -> str:
+        for n in names:
+            v = os.environ.get(n, "").strip()
+            if v:
+                return v
+        return ""
+
+    delay = float(_env("SINDARIN_DELAY", "SINDARIN_REQUEST_DELAY") or "2.0")
+    proxy = _env("SINDARIN_PROXY", "SCOUT_PROXY") or None
+    proxy_file = _env("SINDARIN_PROXY_FILE", "SCOUT_PROXY_FILE") or None
+    use_free = _env("SINDARIN_FREE_PROXY", "SCOUT_FREE_PROXY").lower() == "true"
+    timeout = float(_env("SINDARIN_TIMEOUT", "SCOUT_TIMEOUT") or "20.0")
+    ua = _env("SINDARIN_USER_AGENT", "SCOUT_USER_AGENT") or None
+    honor_robots = _env("SINDARIN_HONOR_ROBOTS").lower() in ("1", "true", "yes")
 
     if use_free:
         console.print("[dim]Free proxy mode enabled (unreliable)[/dim]")
 
     http_session = HttpSession(
         delay=delay,
+        timeout=timeout,
         proxy=proxy,
         proxy_file=proxy_file,
-        honor_robots=False,  # opt-in only
+        user_agent=ua or DEFAULT_UA,
+        honor_robots=honor_robots,
     )
 
     try:
@@ -406,12 +478,7 @@ def main() -> None:
 
             if result:
                 profiles = result if isinstance(result, list) else [result]
-                if Confirm.ask("\n[white][+] Export to CSV?[/white]", default=True):
-                    out_path = Prompt.ask(
-                        "[white]Output path[/white]",
-                        default=f"sindarin_{platform}_{_dt.datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
-                    )
-                    _export_csv(profiles, Path(out_path))
+                _prompt_export(profiles, platform)
 
             if not Confirm.ask("\n[white]Scrape another?[/white]", default=True):
                 break

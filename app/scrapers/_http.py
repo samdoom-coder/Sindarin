@@ -32,8 +32,14 @@ log = logging.getLogger("sindarin.http")
 
 
 # --- self-identifying default UA -------------------------------------------------
+# Version is pulled from the package so the UA never drifts from __version__.
+try:
+    from .. import __version__ as _version  # type: ignore
+except Exception:  # pragma: no cover - fallback for unusual import orders
+    _version = "unknown"
+
 DEFAULT_UA = (
-    "Sindarin/0.1 (+https://github.com/yourname/Sindarin) "
+    f"Sindarin/{_version} (+https://github.com/samdoom-coder/Sindarin) "
     "public-profile-scraper"
 )
 
@@ -122,6 +128,7 @@ class Session:
         params: Optional[Dict[str, str]] = None,
         want_json: bool = False,
         cookies: Optional[Dict[str, str]] = None,
+        allow_redirects: bool = True,
     ) -> requests.Response:
         """Perform a GET with rate-limiting, retries, and backoff."""
         if not url.startswith(("http://", "https://")):
@@ -150,6 +157,7 @@ class Session:
                     timeout=self.timeout,
                     proxies=self._next_proxy(),
                     cookies=cookies,
+                    allow_redirects=allow_redirects,
                 )
             except requests.RequestException as e:
                 last_exc = e

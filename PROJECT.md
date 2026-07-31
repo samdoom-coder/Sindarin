@@ -230,7 +230,7 @@ python sindarin.py --version
 ## Known Limitations / Future Work
 
 - **Instagram**: frequent login walls; scraper returns empty profile rather than bypass.
-- **YouTube**: subscriber count often rounded string; `follower_count` stays `None` unless integer parseable.
+- **YouTube**: subscriber count is rounded by YouTube (e.g. "45.7M") and has no exact public integer; `follower_count` is now an *approximation*, with the raw string preserved in `raw.subscriber_text` and `raw.follower_count_source="rounded"`.
 - **Twitch**: without `TWITCH_CLIENT_ID`, HTML fallback is fragile.
 - **LinkedIn**: cookie expires; user must refresh manually.
 - **Enrichment**: no Hunter.io integration yet (env var reserved).
@@ -244,6 +244,7 @@ python sindarin.py --version
 
 | Version | Date | Notes |
 |---------|------|-------|
+| 0.2.0 | 2026-07-31 | Packaging via `pyproject.toml` (dynamic version, `sindarin` console entry, `py.typed`). Self-identifying UA now resolves to the real repo URL (`samdoom-coder/Sindarin`) and tracks `__version__`. Added JSON + JSONL export (CSV/JSON/JSONL/Both) and interactive format prompt in the CLI. Fixed env var drift: `SINDARIN_*` vars now honored (with `SCOUT_*` fallback). Instagram scraper no longer crashes on a login wall — detects the 302 redirect and returns an empty profile with `raw.login_wall=true`; sends Instagram web-client headers (`x-ig-app-id`). Rewrote YouTube `_parse_about_data` for the new `aboutChannelViewModel`/`pageHeaderViewModel`/`microformatDataRenderer` layout (the legacy `channelAboutFullMetadataRenderer` path Instagram used is gone on YouTube too); subscriber count and video count are now parsed and surfaced — `follower_count` is an approximation of the rounded public figure, flagged via `raw.follower_count_source="rounded"`; raw text kept in `raw.subscriber_text`; channel links are unwrapped from YouTube `/redirect` wrappers. |
 | 0.1.0 | 2026-07-26 | Initial: 8 scrapers, enrichment, CLI, logo, safety defaults. |
 
 ---
