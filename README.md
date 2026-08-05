@@ -114,6 +114,8 @@ app/
     linktree.py
     linkedin.py
 ```
+This project is only for educational and research purpose don't misuse it.Use only to get the info about the publically available profile.
+
 
 ## License
 
