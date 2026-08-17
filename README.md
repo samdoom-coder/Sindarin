@@ -1,7 +1,7 @@
 # Sindarin
 
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://github.com/samdoom-coder/Sindarin/blob/main/LICENSE)
 
 > **Sindarin** — a safe-to-use CLI scraper for public social media profiles.
 > Named after the Elvish language of Middle-earth. Built for lawful, ethical OSINT:
