@@ -8,7 +8,7 @@
 > scrape only public pages, respect each platform's Terms of Service and robots.txt,
 > rate-limit your requests, and never use it for spam, stalking, or harassment.
 
-![Description of image](Cover-image.png)
+![Description of image](public/Cover-image.png)
 
 ## Install
 
@@ -47,7 +47,7 @@ Run without arguments for the interactive TUI menu (built with `rich`).
 
 **LinkedIn**: requires the `li_at` session cookie from a logged-in browser. Set `LINKEDIN_COOKIE=your_cookie` in `.env`. Obtain this only in compliance with LinkedIn's ToS and applicable law.
 
-![Description of image](image.png)
+![Description of image](public/image.png)
 
 
 ## Safety & Ethics (Why "Safe to Use")
